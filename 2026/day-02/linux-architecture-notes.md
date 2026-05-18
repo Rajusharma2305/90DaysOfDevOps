@@ -68,3 +68,18 @@ Debug failures
 Automate startup
 Analyze logs quickly
 
+4)Explain process states (running, sleeping, zombie, etc.)
+.Running:
+Process is working right now
+>sleeping:
+process is waiting for something to happen
+>zombie:
+process is deleted but showing for sometime in the system.
+
+
+List 5 commands you would use daily
+.pwd:shows present working directory
+.ls: to list everything present in a directory
+.cd : to change the directory
+:df-h :to shoe the disk space
+:free-h :to show the ram usage

@@ -1,0 +1,236 @@
+Task 1: The Problem (Data Loss)
+Run PostgreSQL
+docker run -d \
+--name postgres-db \
+-e POSTGRES_PASSWORD=admin123 \
+postgres
+Enter Container
+docker exec -it postgres-db psql -U postgres
+Create Data
+CREATE TABLE students(
+id SERIAL PRIMARY KEY,
+name VARCHAR(50)
+);
+
+INSERT INTO students(name)
+VALUES('Raja');
+
+SELECT * FROM students;
+
+Output:
+
+ id | name
+----+------
+ 1  | Raja
+Remove Container
+docker stop postgres-db
+docker rm postgres-db
+Create New Container
+docker run -d \
+--name postgres-db-new \
+-e POSTGRES_PASSWORD=admin123 \
+postgres
+Check Data
+docker exec -it postgres-db-new psql -U postgres
+SELECT * FROM students;
+
+You will get:
+
+ERROR: relation "students" does not exist
+Why?
+
+Containers are ephemeral.
+
+When a container is removed:
+
+Container filesystem is deleted
+Database files are deleted
+Data is lost
+Task 2: Named Volumes
+Create Volume
+docker volume create postgres-data
+Verify
+docker volume ls
+Run Postgres with Volume
+docker run -d \
+--name postgres-db \
+-e POSTGRES_PASSWORD=admin123 \
+-v postgres-data:/var/lib/postgresql/data \
+postgres
+Add Data
+docker exec -it postgres-db psql -U postgres
+CREATE TABLE students(
+id SERIAL PRIMARY KEY,
+name VARCHAR(50)
+);
+
+INSERT INTO students(name)
+VALUES('Raja');
+Remove Container
+docker stop postgres-db
+docker rm postgres-db
+Run New Container Using Same Volume
+docker run -d \
+--name postgres-db-new \
+-e POSTGRES_PASSWORD=admin123 \
+-v postgres-data:/var/lib/postgresql/data \
+postgres
+Verify Data
+docker exec -it postgres-db-new psql -U postgres
+SELECT * FROM students;
+
+Output:
+
+ id | name
+----+------
+ 1  | Raja
+
+Data survives because it is stored in the volume.
+
+Inspect Volume
+docker volume ls
+docker volume inspect postgres-data
+Task 3: Bind Mounts
+Create Folder
+mkdir mysite
+cd mysite
+Create HTML File
+vim index.html
+<h1>Hello Docker Bind Mount</h1>
+Run Nginx
+docker run -d \
+--name nginx-bind \
+-p 8080:80 \
+-v $(pwd):/usr/share/nginx/html \
+nginx
+
+Open:
+
+http://localhost:8080
+
+You will see:
+
+Hello Docker Bind Mount
+Edit File
+vim index.html
+<h1>Updated Website</h1>
+
+Refresh browser.
+
+Changes appear instantly.
+
+Named Volume vs Bind Mount
+Named Volume	Bind Mount
+Managed by Docker	Managed by Host OS
+Stored in Docker area	Stored anywhere on host
+Best for databases	Best for source code
+Portable	Host dependent
+More secure	Full host access
+Task 4: Docker Networking Basics
+List Networks
+docker network ls
+
+Output similar:
+
+bridge
+host
+none
+Inspect Bridge Network
+docker network inspect bridge
+Run Containers
+docker run -dit --name c1 ubuntu
+docker run -dit --name c2 ubuntu
+Install Ping
+docker exec -it c1 bash
+apt update
+apt install iputils-ping -y
+
+Do same for c2.
+
+Ping by Name
+ping c2
+
+Result:
+
+ping: c2: Name or service not known
+
+Fails.
+
+Get IP
+docker inspect c2
+
+Find:
+
+172.17.0.x
+Ping by IP
+ping 172.17.0.x
+
+Works.
+
+Task 5: Custom Networks
+Create Network
+docker network create my-app-net
+Run Containers
+docker run -dit --name app1 --network my-app-net ubuntu
+docker run -dit --name app2 --network my-app-net ubuntu
+Install Ping
+docker exec -it app1 bash
+apt update && apt install iputils-ping -y
+Ping by Name
+ping app2
+
+Output:
+
+PING app2 (172.18.0.x)
+
+Works.
+
+Why Does Custom Network Work?
+
+Docker creates an internal DNS server for user-defined networks.
+
+When a container asks:
+
+app2
+
+Docker DNS resolves:
+
+app2 → 172.18.0.x
+
+The default bridge network does not automatically provide this name resolution.
+
+Task 6: Put Everything Together
+Create Network
+docker network create my-app-net
+Create Volume
+docker volume create pg-data
+Run Database
+docker run -d \
+--name postgres-db \
+--network my-app-net \
+-e POSTGRES_PASSWORD=admin123 \
+-v pg-data:/var/lib/postgresql/data \
+postgres
+Run App Container
+docker run -dit \
+--name app \
+--network my-app-net \
+ubuntu
+Enter App
+docker exec -it app bash
+Install Networking Tools
+apt update
+apt install iputils-ping -y
+Test Connectivity
+ping postgres-db
+
+Output:
+
+PING postgres-db (172.18.0.x)
+
+Success.
+
+The application container can now communicate with the database using the container name:
+
+Host = postgres-db
+Port = 5432

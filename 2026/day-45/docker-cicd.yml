@@ -1,0 +1,479 @@
+Task 1 – Prepare
+Step 1 Create a Dockerfile
+
+Example Python app:
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install -r requirements.txt
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["python","app.py"]
+Step 2 Push everything to GitHub
+git add .
+git commit -m "Added Dockerfile"
+git push origin main
+Step 3 Docker Hub Secrets
+
+Go to
+
+Repository
+
+↓
+
+Settings
+
+↓
+
+Secrets and Variables
+
+↓
+
+Actions
+
+Create
+
+DOCKER_USERNAME
+
+Value
+
+your Docker Hub username
+
+Create
+
+DOCKER_TOKEN
+
+Value
+
+Docker Hub Access Token
+
+Never store passwords inside YAML.
+
+GitHub injects them securely.
+
+Task 2 – Build Docker Image
+
+Create
+
+.github/workflows/docker-publish.yml
+Trigger
+name: Docker Publish
+
+on:
+  push:
+    branches:
+      - main
+
+Meaning
+
+Whenever code is pushed to main
+
+↓
+
+Start workflow
+
+Job
+jobs:
+
+  docker:
+
+    runs-on: ubuntu-latest
+
+GitHub creates
+
+Fresh Ubuntu VM
+Checkout Code
+steps:
+
+- name: Checkout Repository
+  uses: actions/checkout@v4
+
+Without checkout
+
+GitHub runner has
+
+No source code
+Setup Docker Buildx
+- name: Set up Docker Buildx
+  uses: docker/setup-buildx-action@v3
+
+Why?
+
+Buildx provides
+
+faster builds
+multi-platform images
+build cache
+
+Most production pipelines use Buildx.
+
+Login
+- name: Login to Docker Hub
+  uses: docker/login-action@v3
+  with:
+    username: ${{ secrets.DOCKER_USERNAME }}
+    password: ${{ secrets.DOCKER_TOKEN }}
+
+Here
+
+GitHub
+
+↓
+
+Reads Secrets
+
+↓
+
+Logs into Docker Hub
+
+↓
+
+Stores authentication
+
+Now Docker can push images.
+
+Build Image
+- name: Build Docker Image
+  uses: docker/build-push-action@v5
+  with:
+    context: .
+    push: false
+    tags: ${{ secrets.DOCKER_USERNAME }}/myapp:latest
+
+Notice
+
+push: false
+
+Only build
+
+No upload yet.
+
+Verify
+
+Open
+
+GitHub
+
+↓
+
+Actions
+
+↓
+
+Workflow
+
+↓
+
+Build Docker Image
+
+You should see
+
+Building...
+
+Loading Dockerfile
+
+Installing Packages
+
+Successfully built
+Task 3 – Push to Docker Hub
+
+Production pipelines usually create multiple tags.
+
+Why multiple tags?
+
+Suppose today's commit is
+
+1a2b3c4d5e6f
+
+We create
+
+latest
+
+sha-1a2b3c4
+
+Latest always points to newest image.
+
+SHA always points to exact version.
+
+Create Short SHA
+- name: Set Short SHA
+  run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+Suppose
+
+GITHUB_SHA
+
+=
+
+9a123456789abcdef
+
+Then
+
+SHORT_SHA
+
+=
+
+9a12345
+
+Stored inside
+
+Environment Variable
+Build and Push
+- name: Build and Push
+  uses: docker/build-push-action@v5
+  with:
+    context: .
+    push: true
+    tags: |
+      ${{ secrets.DOCKER_USERNAME }}/myapp:latest
+      ${{ secrets.DOCKER_USERNAME }}/myapp:sha-${{ env.SHORT_SHA }}
+
+Now
+
+Both images are uploaded
+
+latest
+
+sha-9a12345
+Verify
+
+Open Docker Hub.
+
+You should see
+
+Repositories
+
+↓
+
+myapp
+
+↓
+
+Tags
+latest
+
+sha-9a12345
+Task 4 – Push Only on Main
+
+Very common interview question.
+
+You don't want feature branches pushing production images.
+
+Use
+
+if: github.ref == 'refs/heads/main'
+
+Example
+
+- name: Build and Push
+  if: github.ref == 'refs/heads/main'
+  uses: docker/build-push-action@v5
+  with:
+    push: true
+Test
+
+Create feature branch
+
+git checkout -b feature/login
+
+Commit
+
+git add .
+git commit -m "Testing"
+git push origin feature/login
+
+Workflow
+
+Build ✔
+
+Push ❌ Skipped
+
+Exactly what companies do.
+
+Complete Workflow
+name: Docker Publish
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  docker:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Set Short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Build and Push
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/myapp:latest
+            ${{ secrets.DOCKER_USERNAME }}/myapp:sha-${{ env.SHORT_SHA }}
+Task 5 – Status Badge
+
+Open
+
+GitHub Repository
+
+↓
+
+Actions
+
+↓
+
+Docker Publish Workflow
+
+↓
+
+...
+
+Choose
+
+Create status badge
+
+You'll get something like
+
+![Docker Publish](https://github.com/username/repository/actions/workflows/docker-publish.yml/badge.svg)
+
+Add it at the top of your README.md:
+
+# GitHub Actions Practice
+
+![Docker Publish](https://github.com/username/repository/actions/workflows/docker-publish.yml/badge.svg)
+
+Commit and push.
+
+If the workflow succeeds, the badge turns green.
+
+Task 6 – Pull and Run
+
+Pull image
+
+docker pull username/myapp:latest
+
+Run
+
+docker run -d -p 5000:5000 username/myapp:latest
+
+Check
+
+docker ps
+
+Open browser
+
+http://localhost:5000
+
+Application should work.
+
+Complete Journey (Interview Answer)
+Developer
+
+↓
+
+Writes code
+
+↓
+
+git add
+
+↓
+
+git commit
+
+↓
+
+git push
+
+↓
+
+GitHub receives code
+
+↓
+
+Push event triggers GitHub Actions
+
+↓
+
+GitHub creates Ubuntu runner
+
+↓
+
+Repository is checked out
+
+↓
+
+Docker Buildx is configured
+
+↓
+
+Docker Hub login is performed using GitHub Secrets
+
+↓
+
+Docker image is built from Dockerfile
+
+↓
+
+Image is tagged
+
+latest
+
+sha-abcdef1
+
+↓
+
+Image is pushed to Docker Hub
+
+↓
+
+Docker Hub stores the image
+
+↓
+
+Developer or production server executes
+
+docker pull username/myapp:latest
+
+↓
+
+Docker downloads image
+
+↓
+
+docker run
+
+↓
+
+Container starts
+
+↓
+
+Application becomes accessible on the configured port
